@@ -14,5 +14,6 @@
     "webpack-cli": "^4.10.0"
   },
   "dependencies": {
+    "@roam-research/roam-api-sdk": "^0.10.0"
   }
 }
