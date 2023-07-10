@@ -1,26 +1,5 @@
 import { initializeGraph, q, pull, createBlock, batchActions } from '@roam-research/roam-api-sdk';
-
-const panelConfig = {
-    tabTitle: "Send to Graph",
-    settings: [
-        {id:     "graph-edit",
-         name:   "Edit Token",
-         action: {type:        "input",
-                  placeholder: "placeholder",
-                  onChange:    (evt) => { console.log("Input Changed!", evt); }}},
-      {id:     "graph-read",
-      name:   "Read Token",
-      action: {type:        "input",
-                  placeholder: "placeholder",
-                  onChange:    (evt) => { console.log("Input Changed!", evt); }}},
-      {id:     "graph-name",
-        name:   "Graph Name",
-        action: {type:        "input",
-                  placeholder: "placeholder",
-                  onChange:    (evt) => { console.log("Input Changed!", evt); }}},
-    ]
-  };
-
+import graphTokenPanel from './components/graphTokens';
 
 
 function createBlockAction(actionObject) {
@@ -70,14 +49,46 @@ function createBlockAction(actionObject) {
     };
 }
 
-async function sendToGraph(graphReadToken, graphEditToken, blockUID) {
+async function sendToGraph(extensionAPI, blockUID) {
+
     var body = {
         "action" : "batch-actions", 
         "actions": [
     
             ]
         }
-    
+    // set up the graph tokens
+    const graphs = extensionAPI.settings.get("graphInfo")
+    let graphReadToken;
+    let graphEditToken
+
+    if (graphs.length === 0) {
+        console.log('The list is empty.');
+        return
+      } else if (graphs.length === 1) {
+
+        console.log('The list only has one graph.');
+        graphReadToken = initializeGraph({
+            token: graphs[0].readToken,
+            graph: graphs[0].name,
+          });
+        graphEditToken = initializeGraph({
+            token: graphs[0].editToken,
+            graph: graphs[0].name,
+        });
+      } else {
+        console.log('The list has more than one item or is empty.');
+        console.log(graphs)
+      }
+    //currently only one graph supported
+  
+//     - edit
+//     - roam-graph-token-1JaTUiFI3OEeIgm5gVnfCBmRMQf--
+// - read
+//     - roam-graph-token-P0gaXyRsWlTr4ta6nYqHm_RZIk2hJ
+// - name
+//     - roam-extension-examples
+
     function queryToBatchCreate(parentIndex, data, page) {
         for (let index = 0; index < data.length; index++) {
             const block = data[index];
@@ -148,6 +159,20 @@ async function sendToGraph(graphReadToken, graphEditToken, blockUID) {
 }
 
 async function onload({extensionAPI}) {
+    if (!extensionAPI.settings.get('graphInfo')) {
+        await extensionAPI.settings.set('graphInfo', []);
+    }
+
+    const panelConfig = {
+        tabTitle: "Send to Graph",
+        settings: [
+            {id:     "graphTokens",
+                name:   "API Tokens",
+                action: {type:     "reactComponent",
+                        component: graphTokenPanel(extensionAPI)}}
+        ]
+        };
+
   extensionAPI.settings.panel.create(panelConfig);
 
   //currently only one graph supported
@@ -163,7 +188,7 @@ async function onload({extensionAPI}) {
     // register the right click buttons
     roamAlphaAPI.ui.blockContextMenu.addCommand({
         label: "Send to Graph",
-        callback: (e) => sendToGraph(graphReadToken, graphEditToken, e['block-uid'])
+        callback: (e) => sendToGraph(extensionAPI, e['block-uid'])
     })
     
   console.log("load send-to-graph plugin");
