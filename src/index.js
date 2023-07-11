@@ -83,6 +83,15 @@ async function sendToGraph(extensionAPI, blockUID) {
           };
         console.log('The list has more than one item so ask to choose.');
         const newDiv = document.createElement('div');
+        newDiv.style.position = 'fixed';
+        newDiv.style.top = '0';
+        newDiv.style.right = '0';
+        newDiv.style.bottom = '0';
+        newDiv.style.left = '0';
+        newDiv.style.display = 'flex';
+        newDiv.style.justifyContent = 'center';
+        newDiv.style.alignItems = 'center';
+        newDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
         // Append the new div to the body of the document
         document.body.appendChild(newDiv);
 
