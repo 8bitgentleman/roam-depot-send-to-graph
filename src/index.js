@@ -1,6 +1,6 @@
 import { initializeGraph, q, pull, createBlock, batchActions } from '@roam-research/roam-api-sdk';
 import graphTokenPanel from './components/graphTokens';
-
+import { showToast, Alerts } from './components/alerts';
 
 function createBlockAction(actionObject) {
     // actionType,
@@ -64,10 +64,10 @@ async function sendToGraph(extensionAPI, blockUID) {
 
     if (graphs.length === 0) {
         console.log('The list is empty.');
+        showToast();
         return
       } else if (graphs.length === 1) {
-
-        console.log('The list only has one graph.');
+        console.log('The list only has one graph so just use that.');
         graphReadToken = initializeGraph({
             token: graphs[0].readToken,
             graph: graphs[0].name,
@@ -77,10 +77,26 @@ async function sendToGraph(extensionAPI, blockUID) {
             graph: graphs[0].name,
         });
       } else {
-        console.log('The list has more than one item or is empty.');
-        console.log(graphs)
+        const handleConfirm = (selectedGraph) => {
+            console.log(selectedGraph);
+            // Your code to handle the selected graph
+          };
+        console.log('The list has more than one item so ask to choose.');
+        const newDiv = document.createElement('div');
+        // Append the new div to the body of the document
+        document.body.appendChild(newDiv);
+
+        ReactDOM.render(
+            ReactDOM.createPortal(
+                <React.StrictMode>
+                <Alerts graphInfo={graphs} onConfirm={handleConfirm} />
+                </React.StrictMode>,
+                newDiv // Render the component in the new div
+            ),
+            document.getElementById('app')
+        );
+          console.log('after react')
       }
-    //currently only one graph supported
   
 //     - edit
 //     - roam-graph-token-1JaTUiFI3OEeIgm5gVnfCBmRMQf--
@@ -148,14 +164,14 @@ async function sendToGraph(extensionAPI, blockUID) {
             :in $ ?uid
             :where 
                 [?e :block/uid ?uid] ]`;
-
-  q(graphReadToken, query, [blockUID])
-  .then((r) => {
-    queryToBatchCreate(-1, r[0], "today")
-    console.log(body);
-    console.log(r[0])
-    batchActions(graphEditToken, body)
-  });
+    console.log('getting to teh query')
+//   q(graphReadToken, query, [blockUID])
+//   .then((r) => {
+//     queryToBatchCreate(-1, r[0], "today")
+//     console.log(body);
+//     console.log(r[0])
+//     batchActions(graphEditToken, body)
+//   });
 }
 
 async function onload({extensionAPI}) {
@@ -174,16 +190,6 @@ async function onload({extensionAPI}) {
         };
 
   extensionAPI.settings.panel.create(panelConfig);
-
-  //currently only one graph supported
-  const graphReadToken = initializeGraph({
-    token: extensionAPI.settings.get('graph-read'),
-    graph: extensionAPI.settings.get('graph-name'),
-  });
-  const graphEditToken = initializeGraph({
-    token: extensionAPI.settings.get('graph-edit'),
-    graph: extensionAPI.settings.get('graph-name'),
-  });
 
     // register the right click buttons
     roamAlphaAPI.ui.blockContextMenu.addCommand({
