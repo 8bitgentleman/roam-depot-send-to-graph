@@ -2,6 +2,7 @@ import { Alert, Menu, MenuItem, Popover, Button, Position } from "@blueprintjs/c
 import React from "react";
 
 const MyAlert = ({ onClose, isOpen, onConfirm, options, defaultValue }) => {
+  console.log("inside myalert")
   const [selectedValue, setSelectedValue] = React.useState(defaultValue);
 
   const handleMenuItemClick = (option) => {

@@ -4,11 +4,11 @@ import { showToast } from './components/toast';
 import MyAlert from './components/alerts';
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
 
-function getGraphInfo(extensionAPI) {
-    return extensionAPI.settings.get('graphInfo') || []
+async function getGraphInfo(extensionAPI) {
+    return await extensionAPI.settings.get('graphInfo') || []
   }
-function getDefaultGraph(extensionAPI) {
-    return extensionAPI.settings.get('default-graph') || getGraphInfo(extensionAPI)[0]
+async function getDefaultGraph(extensionAPI) {
+    return await extensionAPI.settings.get('default-graph') || await getGraphInfo(extensionAPI)[0]
 }
 
 function createBlockAction(actionObject) {
@@ -67,9 +67,11 @@ async function sendToGraph(extensionAPI, blockUID) {
             ]
         }
     // set up the graph tokens
-    const graphs = getGraphInfo(extensionAPI)
-    let graphReadToken;
-    let graphEditToken
+    const graphs = await getGraphInfo(extensionAPI)
+    console.log("graphs", graphs)
+    let graphReadToken; //do I really need this?
+    let graphEditToken;
+    let onConfirmFinished = new Promise((resolve, reject) => {});
 
     if (graphs.length === 0) {
         console.log('The list is empty.');
@@ -78,51 +80,41 @@ async function sendToGraph(extensionAPI, blockUID) {
         return
       } else if (graphs.length === 1) {
         console.log('The list only has one graph so just use that.');
-        console.log(graphs)
-        graphReadToken = initializeGraph({
-            token: graphs[0].readToken,
-            graph: graphs[0].name,
-          });
         graphEditToken = initializeGraph({
             token: graphs[0].editToken,
             graph: graphs[0].name,
         });
       } else {
-        const renderMyAlert = createOverlayRender("myAlertId", MyAlert);
-
+        console.log("there are more than 1 graph loaded");
+        const renderMyAlert = await createOverlayRender("myAlertId", MyAlert);
+    
         const onClose = () => {
             console.log("Overlay closed");
-          };
-          
+        };
+    
         const onConfirm = (value) => {
             console.log("Selected value:", value);
             extensionAPI.settings.set("default-graph", value)
-            // send the blocks to the selected graph
-            graphReadToken = initializeGraph({
-                token: graphs[value].readToken,
-                graph: graphs[value].name,
-              });
             graphEditToken = initializeGraph({
                 token: graphs[value].editToken,
                 graph: graphs[value].name,
             });
+            // Resolve the Promise
+            resolve();
         };
-          
+    
         const options = getGraphInfo(extensionAPI);
         const defaultValue = getDefaultGraph(extensionAPI);
     
         renderMyAlert({ onClose, onConfirm, options, defaultValue });
-         
-      }
+        console.log("after the alert")
+    }
   
     function queryToBatchCreate(parentIndex, data, page) {
-        console.log("queryToBatchCreate")
         for (let index = 0; index < data.length; index++) {
             const block = data[index];
-            console.log("construct the actionObject")
             let newIndex;
             if (page!== undefined) {
-                console.log('first page')
                 if (page=="today") {
                     parentIndex = roamAlphaAPI.util.dateToPageUid(new Date())
                 } else {
@@ -131,34 +123,33 @@ async function sendToGraph(extensionAPI, blockUID) {
                 newIndex = roamAlphaAPI.util.generateUID()
             } else {
                 newIndex = roamAlphaAPI.util.generateUID()
-                console.log(parentIndex,newIndex)
             }
             
     
             let actionObject = {
                 actionType:"create-block",
                 parentUID:parentIndex,
-                string:block[':block/string'],
+                string:block['string'],
                 uid:newIndex
             }
     
-            if (block[":block/open"] !== undefined) {
-                actionObject["open"] = block[":block/open"];
+            if (block["open"] !== undefined) {
+                actionObject["open"] = block["open"];
             }
-            if (block[":block/heading"] !== undefined) {
-                actionObject["heading"] = block[":block/heading"];
+            if (block["heading"] !== undefined) {
+                actionObject["heading"] = block["heading"];
             }
-            if (block[":block/text-align"] !== undefined) {
-                actionObject["textAlign"] = block[":block/text-align"];
+            if (block["text-align"] !== undefined) {
+                actionObject["textAlign"] = block["text-align"];
             }
-            if (block[":children/view-type"] !== undefined) {
-                actionObject["childViewType"] = block[":children/view-type"];
+            if (block["view-type"] !== undefined) {
+                actionObject["childViewType"] = block["view-type"];
             }
             
             body.actions.push(createBlockAction(actionObject))
     
-            if (block[":block/children"] !== undefined) {
-                queryToBatchCreate(newIndex, block[":block/children"])
+            if (block["children"] !== undefined) {
+                queryToBatchCreate(newIndex, block["children"])
             }
         }
         
@@ -175,17 +166,42 @@ async function sendToGraph(extensionAPI, blockUID) {
             :in $ ?uid
             :where 
                 [?e :block/uid ?uid] ]`;
-  q(graphReadToken, query, [blockUID])
-  .then((r) => {
+    
+    let r = await window.roamAlphaAPI.q(query,blockUID)           
+
     queryToBatchCreate(-1, r[0], "today")
-    console.log(body);
-    console.log(r[0])
-    batchActions(graphEditToken, body)
-  });
+    
+    // Wait for the Promise to be resolved before calling batchActions
+    await onConfirmFinished;
+    console.log("we are confirmed")
+    batchActions(graphEditToken, body);
+ 
 }
 
 
 async function onload({extensionAPI}) {
+
+    const renderMyAlert = createOverlayRender("myAlertId", MyAlert);
+    
+        const onClose = () => {
+            console.log("Overlay closed");
+        };
+    
+        const onConfirm = (value) => {
+            console.log("Selected value:", value);
+            // extensionAPI.settings.set("default-graph", value)
+            // graphEditToken = initializeGraph({
+            //     token: graphs[value].editToken,
+            //     graph: graphs[value].name,
+            // });
+            // Resolve the Promise
+            resolve();
+        };
+    
+        const options = getGraphInfo(extensionAPI);
+        const defaultValue = getDefaultGraph(extensionAPI);
+    
+        renderMyAlert({ onClose, onConfirm, options, defaultValue });
 
     const panelConfig = {
         tabTitle: "Send to Graph",
@@ -207,8 +223,6 @@ async function onload({extensionAPI}) {
     
   console.log("load send-to-graph plugin");
 }    
-
-
 
 function onunload() {
   console.log("unload send-to-graph plugin");
