@@ -16,7 +16,7 @@ const MyAlert = ({ onClose, isOpen, onConfirm, options, defaultValue }) => {
   const menu = (
     <Menu>
       {options.map((option) => (
-        <MenuItem text={option} onClick={() => handleMenuItemClick(option)} key={option} />
+        <MenuItem text={option.name} onClick={() => handleMenuItemClick(option)} key={option.name} />
       ))}
     </Menu>
   );
@@ -31,7 +31,7 @@ const MyAlert = ({ onClose, isOpen, onConfirm, options, defaultValue }) => {
     >
       <h4>Select a graph to send to</h4>
       <Popover content={menu} position={Position.BOTTOM}>
-        <Button text={selectedValue || "Select an option"} />
+        <Button text={selectedValue ? selectedValue.name : "Select an option"} />
       </Popover>
     </Alert>
   );

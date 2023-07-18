@@ -59,7 +59,18 @@ function createBlockAction(actionObject) {
 }
 
 async function sendToGraph(extensionAPI, blockUID) {
-
+    let query = `[:find (pull ?e [:block/string
+                            :block/open
+                            :block/heading
+                            :block/text-align
+                            :children/view-type
+                            :block/children
+                            :block/order
+                            {:block/children ...}])
+            :in $ ?uid
+            :where 
+                [?e :block/uid ?uid] ]`;
+    const data = await window.roamAlphaAPI.q(query, blockUID)
     var body = {
         "action" : "batch-actions", 
         "actions": [
@@ -96,16 +107,17 @@ async function sendToGraph(extensionAPI, blockUID) {
           
         const onConfirm = (value) => {
             console.log("Selected value:", value);
+            console.log(graphs)
             extensionAPI.settings.set("default-graph", value)
             // send the blocks to the selected graph
-            graphReadToken = initializeGraph({
-                token: graphs[value].readToken,
-                graph: graphs[value].name,
-              });
             graphEditToken = initializeGraph({
-                token: graphs[value].editToken,
-                graph: graphs[value].name,
+                token: value.editToken,
+                graph: value.name,
             });
+            queryToBatchCreate(-1, data[0], "today")
+            console.log(body);
+            console.log(data[0])
+            batchActions(graphEditToken, body)
         };
           
         const options = getGraphInfo(extensionAPI);
@@ -164,24 +176,8 @@ async function sendToGraph(extensionAPI, blockUID) {
         
     }
 
-    let query = `[:find (pull ?e [:block/string
-                            :block/open
-                            :block/heading
-                            :block/text-align
-                            :children/view-type
-                            :block/children
-                            :block/order
-                            {:block/children ...}])
-            :in $ ?uid
-            :where 
-                [?e :block/uid ?uid] ]`;
-  q(graphReadToken, query, [blockUID])
-  .then((r) => {
-    queryToBatchCreate(-1, r[0], "today")
-    console.log(body);
-    console.log(r[0])
-    batchActions(graphEditToken, body)
-  });
+    
+    
 }
 
 
