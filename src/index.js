@@ -73,10 +73,12 @@ async function sendToGraph(extensionAPI, blockUID) {
 
     if (graphs.length === 0) {
         console.log('The list is empty.');
-        showToast();
+        showToast("You haven't added any Graph API Tokens to Send-To-Graph.", "WARNING");
+
         return
       } else if (graphs.length === 1) {
         console.log('The list only has one graph so just use that.');
+        console.log(graphs)
         graphReadToken = initializeGraph({
             token: graphs[0].readToken,
             graph: graphs[0].name,
@@ -113,17 +115,11 @@ async function sendToGraph(extensionAPI, blockUID) {
          
       }
   
-//     - edit
-//     - roam-graph-token-1JaTUiFI3OEeIgm5gVnfCBmRMQf--
-// - read
-//     - roam-graph-token-P0gaXyRsWlTr4ta6nYqHm_RZIk2hJ
-// - name
-//     - roam-extension-examples
-
     function queryToBatchCreate(parentIndex, data, page) {
+        console.log("queryToBatchCreate")
         for (let index = 0; index < data.length; index++) {
             const block = data[index];
-            // construct the actionObject
+            console.log("construct the actionObject")
             let newIndex;
             if (page!== undefined) {
                 console.log('first page')
