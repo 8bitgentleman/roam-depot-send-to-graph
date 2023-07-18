@@ -1,35 +1,40 @@
-import React, { useState } from 'react';
-import { Alert, Toaster, Intent, Button, MenuItem } from "@blueprintjs/core";
-import { Select } from "@blueprintjs/select";
+import { Alert, Menu, MenuItem, Popover, Button, Position } from "@blueprintjs/core";
+import React from "react";
 
-const AppToaster = Toaster.create();
+const MyAlert = ({ onClose, isOpen, onConfirm, options, defaultValue }) => {
+  const [selectedValue, setSelectedValue] = React.useState(defaultValue);
 
-export const showToast = () => {
-  AppToaster.show({ message: "You haven't added any Graph API Tokens to Send-To-Graph.", intent: Intent.WARNING });
+  const handleMenuItemClick = (option) => {
+    setSelectedValue(option);
+  };
+
+  const handleConfirm = () => {
+    onConfirm(selectedValue);
+    onClose();
+  };
+
+  const menu = (
+    <Menu>
+      {options.map((option) => (
+        <MenuItem text={option} onClick={() => handleMenuItemClick(option)} key={option} />
+      ))}
+    </Menu>
+  );
+
+  return (
+    <Alert
+      isOpen={isOpen}
+      onClose={onClose}
+      onConfirm={handleConfirm}
+      cancelButtonText="Cancel"
+      confirmButtonText="Send"
+    >
+      <h4>Select a graph to send to</h4>
+      <Popover content={menu} position={Position.BOTTOM}>
+        <Button text={selectedValue || "Select an option"} />
+      </Popover>
+    </Alert>
+  );
 };
 
-export const Alerts = ({ graphInfo, onConfirm }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [selectedGraph, setSelectedGraph] = useState(null);
-    console.log(graphInfo)
-    const renderGraph = (graph, { handleClick }) => (
-      <MenuItem key={graph.name} onClick={handleClick} text={graph.name} />
-    );
-    
-    return (
-      <Alert
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        onConfirm={() => onConfirm(selectedGraph)}
-      >
-        <Select
-          items={graphInfo}
-          itemRenderer={renderGraph}
-          onItemSelect={(graph) => setSelectedGraph(graph.name)}
-          noResults={<MenuItem disabled={true} text="No results." />}
-        >
-          <Button text={selectedGraph ? selectedGraph.name : "Select a graph"} rightIcon="double-caret-vertical" />
-        </Select>
-      </Alert>
-    );
-  };
+export default MyAlert;

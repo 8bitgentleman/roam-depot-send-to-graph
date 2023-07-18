@@ -1,6 +1,15 @@
 import { initializeGraph, q, pull, createBlock, batchActions } from '@roam-research/roam-api-sdk';
 import graphTokenPanel from './components/graphTokens';
-import { showToast, Alerts } from './components/alerts';
+import { showToast } from './components/toast';
+import MyAlert from './components/alerts';
+import createOverlayRender from "roamjs-components/util/createOverlayRender";
+
+function getGraphInfo(extensionAPI) {
+    return extensionAPI.settings.get('graphInfo') || []
+  }
+function getDefaultGraph(extensionAPI) {
+    return extensionAPI.settings.get('default-graph') || getGraphInfo(extensionAPI)[0]
+}
 
 function createBlockAction(actionObject) {
     // actionType,
@@ -58,7 +67,7 @@ async function sendToGraph(extensionAPI, blockUID) {
             ]
         }
     // set up the graph tokens
-    const graphs = extensionAPI.settings.get("graphInfo")
+    const graphs = getGraphInfo(extensionAPI)
     let graphReadToken;
     let graphEditToken
 
@@ -77,34 +86,31 @@ async function sendToGraph(extensionAPI, blockUID) {
             graph: graphs[0].name,
         });
       } else {
-        const handleConfirm = (selectedGraph) => {
-            console.log(selectedGraph);
-            // Your code to handle the selected graph
-          };
-        console.log('The list has more than one item so ask to choose.');
-        const newDiv = document.createElement('div');
-        newDiv.style.position = 'fixed';
-        newDiv.style.top = '0';
-        newDiv.style.right = '0';
-        newDiv.style.bottom = '0';
-        newDiv.style.left = '0';
-        newDiv.style.display = 'flex';
-        newDiv.style.justifyContent = 'center';
-        newDiv.style.alignItems = 'center';
-        newDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        // Append the new div to the body of the document
-        document.body.appendChild(newDiv);
+        const renderMyAlert = createOverlayRender("myAlertId", MyAlert);
 
-        ReactDOM.render(
-            ReactDOM.createPortal(
-                <React.StrictMode>
-                <Alerts graphInfo={graphs} onConfirm={handleConfirm} />
-                </React.StrictMode>,
-                newDiv // Render the component in the new div
-            ),
-            document.getElementById('app')
-        );
-          console.log('after react')
+        const onClose = () => {
+            console.log("Overlay closed");
+          };
+          
+        const onConfirm = (value) => {
+            console.log("Selected value:", value);
+            extensionAPI.settings.set("default-graph", value)
+            // send the blocks to the selected graph
+            graphReadToken = initializeGraph({
+                token: graphs[value].readToken,
+                graph: graphs[value].name,
+              });
+            graphEditToken = initializeGraph({
+                token: graphs[value].editToken,
+                graph: graphs[value].name,
+            });
+        };
+          
+        const options = getGraphInfo(extensionAPI);
+        const defaultValue = getDefaultGraph(extensionAPI);
+    
+        renderMyAlert({ onClose, onConfirm, options, defaultValue });
+         
       }
   
 //     - edit
@@ -173,20 +179,17 @@ async function sendToGraph(extensionAPI, blockUID) {
             :in $ ?uid
             :where 
                 [?e :block/uid ?uid] ]`;
-    console.log('getting to teh query')
-//   q(graphReadToken, query, [blockUID])
-//   .then((r) => {
-//     queryToBatchCreate(-1, r[0], "today")
-//     console.log(body);
-//     console.log(r[0])
-//     batchActions(graphEditToken, body)
-//   });
+  q(graphReadToken, query, [blockUID])
+  .then((r) => {
+    queryToBatchCreate(-1, r[0], "today")
+    console.log(body);
+    console.log(r[0])
+    batchActions(graphEditToken, body)
+  });
 }
 
+
 async function onload({extensionAPI}) {
-    if (!extensionAPI.settings.get('graphInfo')) {
-        await extensionAPI.settings.set('graphInfo', []);
-    }
 
     const panelConfig = {
         tabTitle: "Send to Graph",
