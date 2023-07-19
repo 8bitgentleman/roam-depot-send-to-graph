@@ -205,6 +205,18 @@ async function onload({extensionAPI}) {
         label: "Send to Graph",
         callback: (e) => sendToGraph(extensionAPI, e['block-uid'])
     })
+    extensionAPI.ui.commandPalette.addCommand({label: 'Send To Graph', 
+               callback: () => {
+                let block = window.roamAlphaAPI.ui.getFocusedBlock()
+    
+                if (block != null){
+                    console.log("keyboard sending block", block["block-uid"])
+                    sendToGraph(extensionAPI, block['block-uid'])
+                }
+               },
+               "disable-hotkey": false,
+               // this is the default hotkey, and can be customized by the user. 
+               "default-hotkey": "ctrl-shift-s"})
     
   console.log("load send-to-graph plugin");
 }    
