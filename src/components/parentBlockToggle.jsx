@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FormGroup, InputGroup, Switch } from "@blueprintjs/core";
 
-const SETTING_NAME_TOGGLE = 'toggle';
-const SETTING_NAME_TEXT = 'text';
+const SETTING_NAME_TOGGLE = 'parent-toggle';
+const SETTING_NAME_TEXT = 'parent-text';
 
 const ParentBlockSetting = (extensionAPI) => {
     return () => {

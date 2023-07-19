@@ -78,13 +78,10 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
     }
 
     function queryToBatchCreate(parentIndex, data, page) {
-        console.log("queryToBatchCreate")
         for (let index = 0; index < data.length; index++) {
             const block = data[index];
-            console.log("construct the actionObject")
             let newIndex;
             if (page!== undefined) {
-                console.log('first page')
                 if (page=="today") {
                     parentIndex = roamAlphaAPI.util.dateToPageUid(new Date())
                 } else {
@@ -93,7 +90,6 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
                 newIndex = roamAlphaAPI.util.generateUID()
             } else {
                 newIndex = roamAlphaAPI.util.generateUID()
-                console.log(parentIndex,newIndex)
             }
             
     
@@ -127,9 +123,14 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
     }
 
     try {
+        if (extensionAPI.settings.get('parent-toggle')==true) {
+            let parentBlock = {
+                string:extensionAPI.settings.get('parent-text'),
+                children: data[0]
+            }
+            data[0] = [parentBlock]
+        }
         queryToBatchCreate(-1, data[0], "today")
-        console.log(body);
-        console.log(data[0])
         batchActions(graphEditToken, body)
         
         showToast("Blocks sent to " + graphName, "SUCCESS");
@@ -145,12 +146,11 @@ async function sendToGraph(extensionAPI, blockUID) {
     let graphEditToken;
     let graphName;
     if (graphs.length === 0) {
-        console.log('The list is empty.');
+        // console.log('The list is empty.');
         showToast("You haven't added any Graph API Tokens to Send-To-Graph.", "WARNING");
         return
       } else if (graphs.length === 1) {
-        console.log('The list only has one graph so just use that.');
-        console.log(graphs)
+        // console.log('The list only has one graph so just use that.');
         graphName = graphs[0].name;  
         graphEditToken = initializeGraph({
             token: graphs[0].editToken,
@@ -158,7 +158,6 @@ async function sendToGraph(extensionAPI, blockUID) {
         });
         await batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID)
       } else {
-        console.log(graphs)
         const renderMyAlert = createOverlayRender("myAlertId", MyAlert);
 
         const onClose = () => {
@@ -166,8 +165,6 @@ async function sendToGraph(extensionAPI, blockUID) {
           };
           
         const onConfirm = (value) => {
-            console.log("Selected Graph:", value);
-            console.log(graphs)
             extensionAPI.settings.set("default-graph", value)
             graphName = value.name;
             // send the blocks to the selected graph
@@ -223,7 +220,6 @@ async function onload({extensionAPI}) {
                 let block = window.roamAlphaAPI.ui.getFocusedBlock()
     
                 if (block != null){
-                    console.log("keyboard sending block", block["block-uid"])
                     sendToGraph(extensionAPI, block['block-uid'])
                 }
                },
@@ -233,7 +229,6 @@ async function onload({extensionAPI}) {
     
   console.log("load send-to-graph plugin");
 }    
-
 
 
 function onunload() {
