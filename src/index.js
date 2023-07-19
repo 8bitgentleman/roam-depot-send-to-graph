@@ -58,7 +58,7 @@ function createBlockAction(actionObject) {
     };
 }
 
-async function batchSendBlocks(extensionAPI, graphEditToken, graphName) {
+async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID) {
     let query = `[:find (pull ?e [:block/string
                                 :block/open
                                 :block/heading
@@ -99,27 +99,27 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName) {
             let actionObject = {
                 actionType:"create-block",
                 parentUID:parentIndex,
-                string:block[':block/string'],
+                string:block['string'],
                 uid:newIndex
             }
     
-            if (block[":block/open"] !== undefined) {
-                actionObject["open"] = block[":block/open"];
+            if (block["open"] !== undefined) {
+                actionObject["open"] = block["open"];
             }
-            if (block[":block/heading"] !== undefined) {
-                actionObject["heading"] = block[":block/heading"];
+            if (block["heading"] !== undefined) {
+                actionObject["heading"] = block["heading"];
             }
-            if (block[":block/text-align"] !== undefined) {
-                actionObject["textAlign"] = block[":block/text-align"];
+            if (block["text-align"] !== undefined) {
+                actionObject["textAlign"] = block["text-align"];
             }
-            if (block[":children/view-type"] !== undefined) {
-                actionObject["childViewType"] = block[":children/view-type"];
+            if (block["view-type"] !== undefined) {
+                actionObject["childViewType"] = block["view-type"];
             }
             
             body.actions.push(createBlockAction(actionObject))
     
-            if (block[":block/children"] !== undefined) {
-                queryToBatchCreate(newIndex, block[":block/children"])
+            if (block["children"] !== undefined) {
+                queryToBatchCreate(newIndex, block["children"])
             }
         }
         
@@ -155,25 +155,27 @@ async function sendToGraph(extensionAPI, blockUID) {
             token: graphs[0].editToken,
             graph: graphs[0].name,
         });
-        await batchSendBlocks(extensionAPI, graphEditToken, graphName)
+        await batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID)
       } else {
+        console.log(graphs)
         const renderMyAlert = createOverlayRender("myAlertId", MyAlert);
 
         const onClose = () => {
-            console.log("Overlay closed");
+            console.log("Block Send Canceled");
           };
           
         const onConfirm = (value) => {
-            console.log("Selected value:", value);
+            console.log("Selected Graph:", value);
             console.log(graphs)
             extensionAPI.settings.set("default-graph", value)
+            graphName = value.name;
             // send the blocks to the selected graph
             graphEditToken = initializeGraph({
                 token: value.editToken,
                 graph: value.name,
             });
             
-            batchSendBlocks(extensionAPI, graphEditToken, graphName)
+            batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID)
         };
           
         const options = getGraphInfo(extensionAPI);
