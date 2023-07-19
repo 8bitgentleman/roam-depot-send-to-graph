@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 const graphTokenPanel = (extensionAPI) => () => {
     const [graphName, setGraphName] = useState("");
     const [graphEditToken, setGraphEditToken] = useState("");
-    const [graphReadToken, setGraphReadToken] = useState("");
     const [graphInfo, setGraphInfo] = useState([]);
 
     useEffect(() => {
@@ -63,13 +62,10 @@ const graphTokenPanel = (extensionAPI) => () => {
             <Divider></Divider>
             <ul style={{paddingLeft:"0"}}>
                 <li class="input-group">
-                    <InputGroup placeholder="Graph Name" id="name" value={graphName} onChange={(e) => setGraphName(e.target.value)} />
+                    <InputGroup placeholder="New Graph Name" id="name" value={graphName} onChange={(e) => setGraphName(e.target.value)} />
                 </li>
                 <li class="input-group">
-                    <InputGroup placeholder="Graph Edit Access Token" id="edit" value={graphEditToken} onChange={(e) => setGraphEditToken(e.target.value)} />
-                </li>
-                <li class="input-group">
-                    <InputGroup placeholder="Graph Read Access Token" id="read" value={graphReadToken} onChange={(e) => setGraphReadToken(e.target.value)} />
+                    <InputGroup placeholder="New Graph Edit Access Token" id="edit" value={graphEditToken} onChange={(e) => setGraphEditToken(e.target.value)} />
                 </li>
                 <Button
                     icon="plus"
@@ -78,13 +74,11 @@ const graphTokenPanel = (extensionAPI) => () => {
                         let newGraph = {
                         name: graphName,
                         editToken: graphEditToken,
-                        readToken: graphReadToken
                         };
                         addGraph(newGraph);
                         // Reset the input fields
                         setGraphName("");
                         setGraphEditToken("");
-                        setGraphReadToken("");
                     }}
                     />
             </ul>

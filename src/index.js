@@ -3,6 +3,7 @@ import graphTokenPanel from './components/graphTokens';
 import { showToast } from './components/toast';
 import MyAlert from './components/alerts';
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
+import ParentBlockSetting from './components/parentBlockToggle';
 
 function getGraphInfo(extensionAPI) {
     return extensionAPI.settings.get('graphInfo') || []
@@ -196,7 +197,17 @@ async function onload({extensionAPI}) {
             {id:     "graphTokens",
                 name:   "API Tokens",
                 action: {type:     "reactComponent",
-                        component: graphTokenPanel(extensionAPI)}}
+                        component: graphTokenPanel(extensionAPI)}},
+            {
+                id: "parent-block",
+                name: "Parent Block",
+                description:
+                    "In the destination graph nest the sent blocks under a parent block described here.",
+                action: {
+                    type: "reactComponent",
+                    component: ParentBlockSetting(extensionAPI),
+                },
+                },
         ]
         };
 

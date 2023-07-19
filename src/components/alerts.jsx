@@ -30,7 +30,7 @@ const MyAlert = ({ onClose, isOpen, onConfirm, options, defaultValue }) => {
       confirmButtonText="Send"
     >
       <h4>Select a graph to send to</h4>
-      <Popover content={menu} position={Position.BOTTOM}>
+      <Popover content={menu} position={Position.BOTTOM} minimal={true}>
         <Button text={selectedValue ? selectedValue.name : "Select an option"} />
       </Popover>
     </Alert>
