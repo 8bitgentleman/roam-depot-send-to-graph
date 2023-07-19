@@ -27,12 +27,4 @@ There are 2 ways of using the Send-To-Graph extension:
 2. Alternatively, assign a hotkey via the settings panel to send the currently focused block to another graph.
 
 ## Example 
-
-<video height="400" controls>
-  <source src="https://github.com/8bitgentleman/roam-depot-send-to-graph/raw/main/assets/example.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-<!-- [![image](https://github.com/8bitgentleman/roam-depot-send-to-graph/assets/4028391/d6f7357f-1cc1-4f5f-9a49-16501b3e03eb)](https://github.com/8bitgentleman/roam-depot-send-to-graph/assets/4028391/d6f7357f-1cc1-4f5f-9a49-16501b3e03eb) -->
-
-
+https://github.com/8bitgentleman/roam-depot-send-to-graph/assets/4028391/fee66356-1a15-4432-9b73-52ece2c4d6d9
