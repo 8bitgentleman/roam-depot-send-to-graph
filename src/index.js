@@ -204,7 +204,7 @@ async function onload({extensionAPI}) {
                     type: "reactComponent",
                     component: ParentBlockSetting(extensionAPI),
                 },
-                },
+            },
         ]
         };
 
@@ -232,6 +232,9 @@ async function onload({extensionAPI}) {
 
 
 function onunload() {
+    window.roamAlphaAPI.ui.blockContextMenu.removeCommand({
+        label: "Send To Graph",
+      });
   console.log("unload send-to-graph plugin");
 }
 
