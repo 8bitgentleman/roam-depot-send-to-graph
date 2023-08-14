@@ -233,7 +233,7 @@ async function onload({extensionAPI}) {
 
 function onunload() {
     window.roamAlphaAPI.ui.blockContextMenu.removeCommand({
-        label: "Send To Graph",
+        label: "Send to Graph",
       });
   console.log("unload send-to-graph plugin");
 }
