@@ -1,17 +1,13 @@
-import { initializeGraph, batchActions, pull } from '@roam-research/roam-api-sdk';
+import { initializeGraph, batchActions } from '@roam-research/roam-api-sdk';
 import graphTokenPanel from './components/graphTokens';
 import { showToast } from './components/toast';
 import MyAlert from './components/alerts';
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import ParentBlockSetting from './components/parentBlockToggle';
-import destinationPagePanel from './components/destinationPage';
 
 function getGraphInfo(extensionAPI) {
     return extensionAPI.settings.get('graphInfo') || []
   }
-function getDestinationPages(extensionAPI) {
-    return extensionAPI.settings.get('destinationPageInfo') || []
-}
 function getDefaultGraph(extensionAPI) {
     return extensionAPI.settings.get('default-graph') || getGraphInfo(extensionAPI)[0]
 }
@@ -125,15 +121,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
         }
         
     }
-    async function uidFromPageName(pageName) {
-        try {
-            const pageUID = await pull(graphEditToken, "[:block/uid]", `[:node/title "${pageName}"]`);
-            return pageUID[':block/uid']; // Return the response if successful
-        } catch (error) {
-            showToast("Error: Destination page "+pageName+" does not exist. Falling back to DNP.", "WARNING");
-            return "today"; // Return "today" if an error occurs
-        }
-    }
+
     try {
         if (extensionAPI.settings.get('parent-toggle')==true) {
             let parentBlock = {
@@ -142,32 +130,10 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             }
             data[0] = [parentBlock]
         }
-        // check to see if there is a custom send page for the graph
-        const destinationPages = getDestinationPages(extensionAPI)
-        const defaultPage = "today";
-
-        const foundDict = destinationPages.find(dict => dict.name === graphName);
-
-        // const selectedPage = foundDict ? foundDict.page : defaultPage;
-        let selectedPage;
-
-        if (foundDict) {
-            selectedPage = await uidFromPageName(foundDict.page);
-            console.log("selected page", selectedPage)
-        } else {
-            // If the dictionary isn't found, call the query function using the default page
-            // what if the graph name is typed wrong?
-            //             showToast("Error: Destination page "+pageName+" does not exist. Falling back to DNP.", "WARNING");
-
-            // 
-            selectedPage = "today";
-        }
-
-        queryToBatchCreate(-1, data[0], selectedPage)
+        queryToBatchCreate(-1, data[0], "today")
         batchActions(graphEditToken, body)
         
-        // showToast("Blocks sent to " + graphName, "SUCCESS");
-        
+        showToast("Blocks sent to " + graphName, "SUCCESS");
     } catch (error) {
         showToast("Error: " + error, "DANGER");
     }
@@ -190,7 +156,6 @@ async function sendToGraph(extensionAPI, blockUID) {
             token: graphs[0].editToken,
             graph: graphs[0].name,
         });
-        
         await batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID)
       } else {
         const renderMyAlert = createOverlayRender("myAlertId", MyAlert);
@@ -240,14 +205,10 @@ async function onload({extensionAPI}) {
                     component: ParentBlockSetting(extensionAPI),
                 },
             },
-            {id:     "destinationPage",
-                name:   "Destination Page",
-                action: {type:     "reactComponent",
-                        component: destinationPagePanel(extensionAPI)}},
         ]
         };
-    console.log(extensionAPI.settings.get("graphInfo"))
-    extensionAPI.settings.panel.create(panelConfig);
+
+  extensionAPI.settings.panel.create(panelConfig);
 
     // register the right click buttons
     roamAlphaAPI.ui.blockContextMenu.addCommand({
