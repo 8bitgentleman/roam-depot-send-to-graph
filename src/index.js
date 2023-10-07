@@ -59,6 +59,29 @@ function createBlockAction(actionObject) {
     };
 }
 
+// TODO resolve block embeds
+// {{[[embed]]: ((BLOCK_REF))}}
+// blockText = blockText.replace(/{{\[{0,2}embed.*?(\(\(.*?\)\)).*?}}/g, '$1');
+async function resolveBlockRefs(origBlockString) {
+    const regex = /(?<=\(\()\b(.*?)\b(?=\)\))(?![^{]*}})/g;
+    let match;
+    let resolvedStr = origBlockString;
+
+    while ((match = regex.exec(origBlockString)) !== null) {
+        const blockUid = match[0];
+        if (blockUid) {
+            let blockText = await window.roamAlphaAPI.pull("[:block/string]", `[:block/uid "${blockUid}"]`)[':block/string'];
+            if (blockText) {
+                // Recursively resolve any block references in the fetched block text
+                blockText = await resolveBlockRefs(blockText);
+                // Replace the original block reference with the resolved block text
+                resolvedStr = resolvedStr.replace(`((${blockUid}))`, blockText);
+            }
+        }
+    }
+
+    return resolvedStr;
+}
 async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID) {
     let query = `[:find (pull ?e [:block/string
                                 :block/open
@@ -77,7 +100,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
         "actions": []
     }
 
-    function queryToBatchCreate(parentIndex, data, page) {
+    async function queryToBatchCreate(parentIndex, data, page) {
         for (let index = 0; index < data.length; index++) {
             const block = data[index];
             let newIndex;
@@ -92,11 +115,12 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
                 newIndex = roamAlphaAPI.util.generateUID()
             }
             
-    
+            const resolvedBlockRefs = await resolveBlockRefs(block['string']);
+
             let actionObject = {
                 actionType:"create-block",
                 parentUID:parentIndex,
-                string:block['string'],
+                string: resolvedBlockRefs,
                 uid:newIndex
             }
     
@@ -116,7 +140,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             body.actions.push(createBlockAction(actionObject))
     
             if (block["children"] !== undefined) {
-                queryToBatchCreate(newIndex, block["children"])
+                await queryToBatchCreate(newIndex, block["children"])
             }
         }
         
@@ -130,7 +154,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             }
             data[0] = [parentBlock]
         }
-        queryToBatchCreate(-1, data[0], "today")
+        await queryToBatchCreate(-1, data[0], "today")
         batchActions(graphEditToken, body)
         
         showToast("Blocks sent to " + graphName, "SUCCESS");
