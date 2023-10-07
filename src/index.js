@@ -80,7 +80,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
         "action" : "batch-actions", 
         "actions": []
     }
-
+    
     function queryToBatchCreate(parentIndex, data, page) {
         for (let index = 0; index < data.length; index++) {
             const block = data[index];
@@ -88,6 +88,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             if (page!== undefined) {
                 if (page=="today") {
                     parentIndex = roamAlphaAPI.util.dateToPageUid(new Date())
+                    console.log(parentIndex)
                 } else {
                     parentIndex = page
                 }
@@ -145,7 +146,6 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
         // check to see if there is a custom send page for the graph
         const destinationPages = getDestinationPages(extensionAPI)
         const defaultPage = "today";
-
         const foundDict = destinationPages.find(dict => dict.name === graphName);
 
         // const selectedPage = foundDict ? foundDict.page : defaultPage;
@@ -159,13 +159,15 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             // what if the graph name is typed wrong?
             //             showToast("Error: Destination page "+pageName+" does not exist. Falling back to DNP.", "WARNING");
 
-            // 
-            selectedPage = "today";
+            // TODO fix just for testing
+            selectedPage = "today"; //"VCLh6WH-R"; //
         }
-
-        queryToBatchCreate(-1, data[0], selectedPage)
-        batchActions(graphEditToken, body)
         
+        queryToBatchCreate(-1, data[0], selectedPage)
+        console.log(body, graphEditToken)
+        await batchActions(graphEditToken, body)
+        
+
         // showToast("Blocks sent to " + graphName, "SUCCESS");
         
     } catch (error) {
@@ -179,6 +181,7 @@ async function sendToGraph(extensionAPI, blockUID) {
     const graphs = getGraphInfo(extensionAPI)
     let graphEditToken;
     let graphName;
+    // just a test
     if (graphs.length === 0) {
         // console.log('The list is empty.');
         showToast("You haven't added any Graph API Tokens to Send-To-Graph.", "WARNING");
@@ -186,11 +189,12 @@ async function sendToGraph(extensionAPI, blockUID) {
       } else if (graphs.length === 1) {
         // console.log('The list only has one graph so just use that.');
         graphName = graphs[0].name;  
+        console.log(graphs, graphs[0].editToken)
         graphEditToken = initializeGraph({
             token: graphs[0].editToken,
             graph: graphs[0].name,
         });
-        
+        console.log(graphEditToken)
         await batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID)
       } else {
         const renderMyAlert = createOverlayRender("myAlertId", MyAlert);
@@ -220,7 +224,33 @@ async function sendToGraph(extensionAPI, blockUID) {
   
 }
 
+async function sendPageToGraph(extensionAPI, blockUID) {
+    
+}
 
+async function getCurrentPage() {
+    function getPageFromJSON(json) {
+        try {
+            if (json.hasOwnProperty('page') && json.page.hasOwnProperty('title')) {
+                return json.page.title;
+            } else if (json.hasOwnProperty('title')) {
+                return json.title;
+            } 
+        } catch (error) {
+            showToast("Error: Current page could not be found", "DANGER");
+            return null; 
+        }
+    }
+    let query = `[:find (pull ?e [*{:block/page ...}])
+                        :in $ ?namespace
+                        :where 
+                          [?e :block/uid ?namespace]
+                          ]`;
+    let currentUID = await roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid();
+    let result = await window.roamAlphaAPI.q(query,currentUID).flat();
+    return await getPageFromJSON(result[0]);
+  }
+  
 async function onload({extensionAPI}) {
 
     const panelConfig = {
@@ -246,7 +276,7 @@ async function onload({extensionAPI}) {
                         component: destinationPagePanel(extensionAPI)}},
         ]
         };
-    console.log(extensionAPI.settings.get("graphInfo"))
+
     extensionAPI.settings.panel.create(panelConfig);
 
     // register the right click buttons
@@ -266,6 +296,16 @@ async function onload({extensionAPI}) {
                // this is the default hotkey, and can be customized by the user. 
                "default-hotkey": "ctrl-shift-s"})
     
+    extensionAPI.ui.commandPalette.addCommand({label: 'Send Page To Graph', 
+               callback: async () => {
+                let page = await getCurrentPage()
+                // if (page != null){
+                //     sendToGraph(extensionAPI, block['block-uid'])
+                // }
+               },
+               "disable-hotkey": false,
+               })
+
   console.log("load send-to-graph plugin");
 }    
 
