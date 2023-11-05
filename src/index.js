@@ -63,12 +63,15 @@ function createBlockAction(actionObject) {
 // {{[[embed]]: ((BLOCK_REF))}}
 // blockText = blockText.replace(/{{\[{0,2}embed.*?(\(\(.*?\)\)).*?}}/g, '$1');
 async function resolveBlockRefs(origBlockString) {
-    const regex = /(?<=\(\()\b(.*?)\b(?=\)\))(?![^{]*}})/g;
-    let match;
+    const blockRegex = /(?<=\(\()\b(.*?)\b(?=\)\))(?![^{]*}})/g;
+    const embedRegex = /{{\[{0,2}embed.*?(\(\(.*?\)\)).*?}}/g;
+
     let resolvedStr = origBlockString;
 
-    while ((match = regex.exec(origBlockString)) !== null) {
-        const blockUid = match[0];
+    // Resolve block references
+    let blockMatch;
+    while ((blockMatch = blockRegex.exec(origBlockString)) !== null) {
+        const blockUid = blockMatch[0];        
         if (blockUid) {
             let blockText = await window.roamAlphaAPI.pull("[:block/string]", `[:block/uid "${blockUid}"]`)[':block/string'];
             if (blockText) {
@@ -80,8 +83,22 @@ async function resolveBlockRefs(origBlockString) {
         }
     }
 
+    // Resolve block embeds
+    let embedMatch;
+    while ((embedMatch = embedRegex.exec(origBlockString)) !== null) {
+        const blockRef = embedMatch[1]; // Extract the block reference from the embed
+        if (blockRef) {
+            let blockText = await resolveBlockRefs(blockRef); // Resolve the block reference
+            // Replace the entire embed component with the resolved block text
+            resolvedStr = resolvedStr.replace(embedMatch[0], blockText);
+        }
+    }
+    // replace any trailing open (( (sometimes happens with block refs)
+    resolvedStr = resolvedStr.replace("((", "");
     return resolvedStr;
 }
+
+
 async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID) {
     let query = `[:find (pull ?e [:block/string
                                 :block/open
