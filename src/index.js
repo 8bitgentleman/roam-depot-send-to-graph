@@ -59,6 +59,46 @@ function createBlockAction(actionObject) {
     };
 }
 
+// TODO resolve block embeds
+// {{[[embed]]: ((BLOCK_REF))}}
+// blockText = blockText.replace(/{{\[{0,2}embed.*?(\(\(.*?\)\)).*?}}/g, '$1');
+async function resolveBlockRefs(origBlockString) {
+    const blockRegex = /(?<=\(\()\b(.*?)\b(?=\)\))(?![^{]*}})/g;
+    const embedRegex = /{{\[{0,2}embed.*?(\(\(.*?\)\)).*?}}/g;
+
+    let resolvedStr = origBlockString;
+
+    // Resolve block references
+    let blockMatch;
+    while ((blockMatch = blockRegex.exec(origBlockString)) !== null) {
+        const blockUid = blockMatch[0];        
+        if (blockUid) {
+            let blockText = await window.roamAlphaAPI.pull("[:block/string]", `[:block/uid "${blockUid}"]`)[':block/string'];
+            if (blockText) {
+                // Recursively resolve any block references in the fetched block text
+                blockText = await resolveBlockRefs(blockText);
+                // Replace the original block reference with the resolved block text
+                resolvedStr = resolvedStr.replace(`((${blockUid}))`, blockText);
+            }
+        }
+    }
+
+    // Resolve block embeds
+    let embedMatch;
+    while ((embedMatch = embedRegex.exec(origBlockString)) !== null) {
+        const blockRef = embedMatch[1]; // Extract the block reference from the embed
+        if (blockRef) {
+            let blockText = await resolveBlockRefs(blockRef); // Resolve the block reference
+            // Replace the entire embed component with the resolved block text
+            resolvedStr = resolvedStr.replace(embedMatch[0], blockText);
+        }
+    }
+    // replace any trailing open (( (sometimes happens with block refs)
+    resolvedStr = resolvedStr.replace("((", "");
+    return resolvedStr;
+}
+
+
 async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID) {
     let query = `[:find (pull ?e [:block/string
                                 :block/open
@@ -77,7 +117,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
         "actions": []
     }
 
-    function queryToBatchCreate(parentIndex, data, page) {
+    async function queryToBatchCreate(parentIndex, data, page) {
         for (let index = 0; index < data.length; index++) {
             const block = data[index];
             let newIndex;
@@ -92,11 +132,12 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
                 newIndex = roamAlphaAPI.util.generateUID()
             }
             
-    
+            const resolvedBlockRefs = await resolveBlockRefs(block['string']);
+
             let actionObject = {
                 actionType:"create-block",
                 parentUID:parentIndex,
-                string:block['string'],
+                string: resolvedBlockRefs,
                 uid:newIndex
             }
     
@@ -116,7 +157,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             body.actions.push(createBlockAction(actionObject))
     
             if (block["children"] !== undefined) {
-                queryToBatchCreate(newIndex, block["children"])
+                await queryToBatchCreate(newIndex, block["children"])
             }
         }
         
@@ -130,7 +171,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             }
             data[0] = [parentBlock]
         }
-        queryToBatchCreate(-1, data[0], "today")
+        await queryToBatchCreate(-1, data[0], "today")
         batchActions(graphEditToken, body)
         
         showToast("Blocks sent to " + graphName, "SUCCESS");
