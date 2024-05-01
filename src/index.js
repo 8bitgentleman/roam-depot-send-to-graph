@@ -226,8 +226,69 @@ async function sendToGraph(extensionAPI, blockUID) {
   
 }
 
-async function pullFromGraph(extensionAPI, blockUID) {
-    
+async function pullFromGraph(extensionAPI, syncBlocks) {
+    // set up the graph tokens
+    const graphs = getGraphInfo(extensionAPI)
+    if (graphs.length === 0) {
+        showToast("You haven't added any Graph API Tokens to Send-To-Graph.", "WARNING");
+        return
+    } else {
+        // TODO add lots of error checking
+        // loop through all sync blocks grouped by graph
+        for (let key in syncBlocks) {
+            console.log(key);
+            // select the graph auth info from the user's list of authenticated graphs
+            const selectedGraph = graphs.find(item => item.name === key);
+            if (selectedGraph) {
+                let graph = initializeGraph({
+                    token: selectedGraph.editToken,
+                    graph: key,
+                });
+                // TODO MARK: Temp SDK Fix 
+                // remove when SDK is updated with pullMany
+                graph.pullMany = async function(eids, selector) {
+                    const path = `/api/graph/${this.graph}/pull-many`;
+                    const body = {
+                        eids: eids,
+                        selector: selector
+                    };
+                    const resp = await this.api(path, "POST", body);
+                    const { result } = await resp.json();
+                    return result;
+                  };
+                
+                const eids = syncBlocks[key].map(item => item.string);                
+                const pattern = "[:block/string [:block/uid :as :remoteUID]]";
+
+                // TODO what to do if the remote block contains a blockUID?
+                graph.pullMany(eids, pattern).then(result => {
+                    console.log(syncBlocks[key]);
+                    console.log(result);
+                    // loop through the pullMany results
+                    result.forEach(remoteBlock => {
+                        // match each remote pullMany result with it's block in the local graph
+                        const localBlock = syncBlocks[key].find(item => item.remoteUID === remoteBlock.remoteUID);
+                        // console.log(remoteBlock, localBlock);
+                        let newBlockString = `${remoteBlock[':block/string']} {{cross-graph-block:${key}:${remoteBlock.remoteUID}}}`
+                        console.log(newBlockString);
+                        
+                        window.roamAlphaAPI.updateBlock(
+                            {"block": 
+                                {"uid": localBlock.localUID,
+                                    "string": newBlockString}
+                            })
+                    });
+                    
+                }).catch(error => {
+                    console.error('Error:', error);
+                });
+            } else {
+                showToast(`You haven't added any Graph API Tokens for ${key}. Blocks will not sync.`, "WARNING");
+            }
+            
+
+        }
+    }
 }
 
 
@@ -294,32 +355,45 @@ async function onload({extensionAPI}) {
                     ]`;
     
             let results = window.roamAlphaAPI.q(query,'{{cross-graph-block:', "``").flat();
+            
+            let resultBlocks = {}
             results.forEach(block => {
-                let remote_block_info = extractAndSplit(block.string)
-                let remoteGraph = remote_block_info[0]
-                let remoteBlockUID = remote_block_info[1]
-        
-                let eid = `[:block/uid "${remoteBlockUID}"]`
-                let graph = initializeGraph(graph_info);
-                const pattern = "[:block/string]";
-        
-                pull(graph, pattern, eid)
-                .then(result => {
-                    // Handle the result
-                    console.log(result?.[':block/string'] ?? "Fallback value");
-                    let newBlockString = `${result[':block/string']}{{cross-graph-block:${remoteGraph}:${remoteBlockUID}}}`
-                    window.roamAlphaAPI.updateBlock(
-                    {"block": 
-                        {"uid": block.uid,
-                            "string": newBlockString}
-                    })
-                })
-                .catch(error => {
-                    // Handle any errors
-                    console.error(error);
+                let remoteBlockInfo = extractAndSplit(block.string)
+                
+                let remoteGraph = remoteBlockInfo[0]
+                let remoteBlockUID = remoteBlockInfo[1]
+                
+                resultBlocks[remoteGraph] = resultBlocks[remoteGraph] || [];
+
+                resultBlocks[remoteGraph].push({
+                    string:`[:block/uid "${remoteBlockUID}"]`,
+                    localUID:block.uid,
+                    remoteUID:remoteBlockUID,
                 });
     
             });
+            
+            pullFromGraph(extensionAPI, resultBlocks)
+
+            // let eid = `[:block/uid "${remoteBlockUID}"]`
+            // let graph = initializeGraph(graph_info);
+            // const pattern = "[:block/string]";
+    
+            // pull(graph, pattern, eid)
+            // .then(result => {
+            //     // Handle the result
+            //     console.log(result?.[':block/string'] ?? "Fallback value");
+            //     let newBlockString = `${result[':block/string']}{{cross-graph-block:${remoteGraph}:${remoteBlockUID}}}`
+            //     window.roamAlphaAPI.updateBlock(
+            //     {"block": 
+            //         {"uid": block.uid,
+            //             "string": newBlockString}
+            //     })
+            // })
+            // .catch(error => {
+            //     // Handle any errors
+            //     console.error(error);
+            // });
         },
     })
   console.log("load send-to-graph plugin");
