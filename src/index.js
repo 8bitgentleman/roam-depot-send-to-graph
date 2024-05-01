@@ -226,6 +226,15 @@ async function sendToGraph(extensionAPI, blockUID) {
   
 }
 
+async function pullFromGraph(extensionAPI, blockUID) {
+    
+}
+
+
+function extractAndSplit(inputString) {
+    const match = inputString.match(/{{cross-graph-block:([^}]+)}}/);
+    return match ? match[1].split(':') : null;
+}
 
 async function onload({extensionAPI}) {
 
@@ -268,6 +277,51 @@ async function onload({extensionAPI}) {
                // this is the default hotkey, and can be customized by the user. 
                "default-hotkey": "ctrl-shift-s"})
     
+
+    extensionAPI.ui.commandPalette.addCommand({
+        label: "Cross Graph Sync - Pull in changes",
+        "disable-hotkey": false,
+        callback: async () => {
+            let query = `[:find (pull ?e [:block/uid :block/string])
+                        :in $ ?search ?nots
+                        :where 
+                            [?e :block/string ?string]
+                            [(clojure.string/includes? ?string ?search)]
+                            (not
+                            [?e :block/string ?string]
+                            [(clojure.string/includes? ?string ?nots)]
+                            )
+                    ]`;
+    
+            let results = window.roamAlphaAPI.q(query,'{{cross-graph-block:', "``").flat();
+            results.forEach(block => {
+                let remote_block_info = extractAndSplit(block.string)
+                let remoteGraph = remote_block_info[0]
+                let remoteBlockUID = remote_block_info[1]
+        
+                let eid = `[:block/uid "${remoteBlockUID}"]`
+                let graph = initializeGraph(graph_info);
+                const pattern = "[:block/string]";
+        
+                pull(graph, pattern, eid)
+                .then(result => {
+                    // Handle the result
+                    console.log(result?.[':block/string'] ?? "Fallback value");
+                    let newBlockString = `${result[':block/string']}{{cross-graph-block:${remoteGraph}:${remoteBlockUID}}}`
+                    window.roamAlphaAPI.updateBlock(
+                    {"block": 
+                        {"uid": block.uid,
+                            "string": newBlockString}
+                    })
+                })
+                .catch(error => {
+                    // Handle any errors
+                    console.error(error);
+                });
+    
+            });
+        },
+    })
   console.log("load send-to-graph plugin");
 }    
 

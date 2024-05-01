@@ -1,10 +1,16 @@
-import { Button, InputGroup, Divider } from "@blueprintjs/core";
+import { Button, InputGroup, Divider, ButtonGroup, Icon } from "@blueprintjs/core";
 import React, { useState, useEffect } from "react";
+import { IconNames } from '@blueprintjs/icons';
 
 const graphTokenPanel = (extensionAPI) => () => {
     const [graphName, setGraphName] = useState("");
     const [graphEditToken, setGraphEditToken] = useState("");
     const [graphInfo, setGraphInfo] = useState([]);
+    const [selected, setSelected] = useState('askToUpdate');
+
+    const handleSelect = (option) => {
+        setSelected(option);
+    };
 
     useEffect(() => {
         const fetchGraphInfo = async () => {
@@ -67,20 +73,59 @@ const graphTokenPanel = (extensionAPI) => () => {
                 <li class="input-group">
                     <InputGroup placeholder="New Graph Edit Access Token" id="edit" value={graphEditToken} onChange={(e) => setGraphEditToken(e.target.value)} />
                 </li>
-                <Button
-                    icon="plus"
-                    minimal
-                    onClick={() => {
-                        let newGraph = {
-                        name: graphName,
-                        editToken: graphEditToken,
-                        };
-                        addGraph(newGraph);
-                        // Reset the input fields
-                        setGraphName("");
-                        setGraphEditToken("");
-                    }}
-                    />
+                <li className="input-group" style={{ marginTop:"8px", display: "flex", justifyContent: "center" }}>
+                    <h3>Sync Block Settings</h3>
+                </li>
+                <li class="input-group sync-style">
+                    <ButtonGroup minimal={true}>
+                      <Button
+                          active={selected === 'dontUpdate'}
+                          onClick={() => handleSelect('dontUpdate')}
+                          intent={selected === 'dontUpdate' ? 'primary' : 'none'}
+                          className="vertical-button"
+                      >
+                          <Icon icon={IconNames.CROSS} />
+                          <div className="button-label">Don't</div>
+                          <div className="button-label">Update</div>
+                      </Button>
+                      <Button
+                          active={selected === 'askToUpdate'}
+                          onClick={() => handleSelect('askToUpdate')}
+                          intent={selected === 'askToUpdate' ? 'primary' : 'none'}
+                          className="vertical-button"
+                      >
+                          <Icon icon={IconNames.IMPORT} />
+                          <div className="button-label">Manual</div>
+                          <div className="button-label">Update</div>
+                      </Button>
+                      <Button
+                          active={selected === 'updateAuto'}
+                          onClick={() => handleSelect('updateAuto')}
+                          intent={selected === 'updateAuto' ? 'primary' : 'none'}
+                          className="vertical-button"
+                      >
+                        <Icon icon={IconNames.REFRESH} />
+                        <div className="button-label">Automatic</div>
+                        <div className="button-label">Update</div>
+                    </Button>
+                  </ButtonGroup>
+                </li>
+                <li className="input-group" style={{ marginTop:"8px", display: "flex", justifyContent: "center" }}>
+                  <Button
+                      icon="plus"
+                      minimal
+                      onClick={() => {
+                          let newGraph = {
+                          name: graphName,
+                          editToken: graphEditToken,
+                          };
+                          addGraph(newGraph);
+                          // Reset the input fields
+                          setGraphName("");
+                          setGraphEditToken("");
+                      }}
+                      />
+                </li>
             </ul>
         </ul>
     );
