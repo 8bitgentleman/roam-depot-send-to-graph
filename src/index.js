@@ -172,8 +172,7 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             data[0] = [parentBlock]
         }
         await queryToBatchCreate(-1, data[0], "today")
-        batchActions(graphEditToken, body)
-        
+        const batch = await batchActions(graphEditToken, body)
         showToast("Blocks sent to " + graphName, "SUCCESS");
     } catch (error) {
         showToast("Error: " + error, "DANGER");
