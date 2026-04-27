@@ -1,8 +1,9 @@
-A Roam Research extension to send blocks from one graph to another. The destination graph does not need to be open.
+A Roam Research extension to send blocks or entire pages from one graph to another. The destination graph does not need to be open.
 This is a one-way push. The blocks are added to the new graph as if you had created them manually yourself.
 
 ## Features
 - Send blocks to another graph with a simple right-click command or via hotkey.
+- Send an entire page to another graph by right-clicking the page title. If the page already exists in the destination, blocks are appended to it.
 - Configure multiple graphs to send blocks to.
 - Option to nest sent blocks under a parent block (for example an _#inbox_ tag) in the destination graph.
 
@@ -22,9 +23,10 @@ Note: only the creator of a graph can create new API tokens.
 
 
 ## Usage
-There are 2 ways of using the Send-To-Graph extension:
+There are 3 ways of using the Send-To-Graph extension:
 1. Right-click on a block and select "Send to Graph". If you have multiple graphs configured, you will be asked to select the destination graph.
-2. Alternatively, assign a hotkey via the settings panel to send the currently focused block to another graph.
+2. Right-click on a page title and select "Send Page to Graph" to send the entire page. If a page with that title already exists in the destination graph, the blocks will be appended to it.
+3. Alternatively, assign a hotkey via the settings panel to send the currently focused block to another graph.
 
 ## Example 
 https://github.com/8bitgentleman/roam-depot-send-to-graph/assets/4028391/fee66356-1a15-4432-9b73-52ece2c4d6d9
