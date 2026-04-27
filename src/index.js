@@ -65,7 +65,7 @@ function createBlockAction(actionObject) {
 // TODO resolve block embeds
 // {{[[embed]]: ((BLOCK_REF))}}
 // blockText = blockText.replace(/{{\[{0,2}embed.*?(\(\(.*?\)\)).*?}}/g, '$1');
-async function resolveBlockRefs(origBlockString) {
+async function resolveBlockRefs(origBlockString, unresolvedUids = []) {
     const blockRegex = /(?<=\(\()\b(.*?)\b(?=\)\))(?![^{]*}})/g;
     const embedRegex = /{{\[{0,2}embed.*?(\(\(.*?\)\)).*?}}/g;
 
@@ -81,12 +81,14 @@ async function resolveBlockRefs(origBlockString) {
             if (blockData && blockData[':block/string']) {
                 let blockText = blockData[':block/string'];
                 // Recursively resolve any block references in the fetched block text
-                blockText = await resolveBlockRefs(blockText);
+                const result = await resolveBlockRefs(blockText, unresolvedUids);
+                blockText = result.resolvedString;
                 // Replace the original block reference with the resolved block text
                 resolvedStr = resolvedStr.replace(`((${blockUid}))`, blockText);
             } else {
-                // If block doesn't exist, leave the reference as-is or mark it
+                // If block doesn't exist, leave the reference as-is and track it
                 console.warn(`Block reference ((${blockUid})) could not be resolved - block may not exist`);
+                unresolvedUids.push(blockUid);
             }
         }
     }
@@ -96,14 +98,14 @@ async function resolveBlockRefs(origBlockString) {
     while ((embedMatch = embedRegex.exec(origBlockString)) !== null) {
         const blockRef = embedMatch[1]; // Extract the block reference from the embed
         if (blockRef) {
-            let blockText = await resolveBlockRefs(blockRef); // Resolve the block reference
+            const result = await resolveBlockRefs(blockRef, unresolvedUids); // Resolve the block reference
             // Replace the entire embed component with the resolved block text
-            resolvedStr = resolvedStr.replace(embedMatch[0], blockText);
+            resolvedStr = resolvedStr.replace(embedMatch[0], result.resolvedString);
         }
     }
     // replace any trailing open (( (sometimes happens with block refs)
     resolvedStr = resolvedStr.replace("((", "");
-    return resolvedStr;
+    return { resolvedString: resolvedStr, unresolvedUids };
 }
 
 
@@ -117,13 +119,16 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
                                 :block/order
                                 {:block/children ...}])
                 :in $ ?uid
-                :where 
+                :where
                 [?e :block/uid ?uid] ]`;
     const data = await window.roamAlphaAPI.q(query, blockUID)
     var body = {
-        "action" : "batch-actions", 
+        "action" : "batch-actions",
         "actions": []
     }
+
+    // Track all unresolved block references across all blocks
+    const allUnresolvedUids = [];
 
     async function queryToBatchCreate(parentIndex, data, page) {
         for (let index = 0; index < data.length; index++) {
@@ -149,7 +154,12 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
                 newIndex = roamAlphaAPI.util.generateUID();
             }
 
-            const resolvedBlockRefs = await resolveBlockRefs(block['string']);
+            const resolveResult = await resolveBlockRefs(block['string'], []);
+            const resolvedBlockRefs = resolveResult.resolvedString;
+            // Collect any unresolved UIDs from this block
+            if (resolveResult.unresolvedUids.length > 0) {
+                allUnresolvedUids.push(...resolveResult.unresolvedUids);
+            }
 
             let actionObject = {
                 actionType: "create-block",
@@ -209,6 +219,14 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
             }
         } else {
             showToast("Blocks sent to " + graphName, "SUCCESS");
+
+            // Warn user about unresolved block references if any exist
+            if (allUnresolvedUids.length > 0) {
+                const uniqueUids = [...new Set(allUnresolvedUids)]; // Remove duplicates
+                const uidList = uniqueUids.slice(0, 3).join(', '); // Show first 3
+                const moreCount = uniqueUids.length > 3 ? ` and ${uniqueUids.length - 3} more` : '';
+                showToast(`Warning: ${uniqueUids.length} block reference(s) could not be resolved: ((${uidList}))${moreCount}. Blocks were sent with unresolved references.`, "WARNING");
+            }
         }
     } catch (error) {
         console.error('Error sending blocks:', error);
