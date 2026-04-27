@@ -1,4 +1,4 @@
-import { initializeGraph, batchActions } from '@roam-research/roam-api-sdk';
+import { initializeGraph, batchActions, createPage, q as queryGraph } from '@roam-research/roam-api-sdk';
 import graphTokenPanel from './components/graphTokens';
 import { showToast } from './components/toast';
 import MyAlert from './components/alerts';
@@ -288,6 +288,121 @@ async function sendToGraph(extensionAPI, blockUID) {
 }
 
 
+const PAGE_CONTEXT_LABEL = "Send Page to Graph";
+
+function sortByOrder(blocks) {
+    return [...blocks].sort((a, b) => (a['order'] ?? 0) - (b['order'] ?? 0));
+}
+
+async function batchSendPage(graphEditToken, graphName, pageUID, pageTitle) {
+    const query = `[:find (pull ?e [:block/string
+                                    :block/open
+                                    :block/heading
+                                    :block/text-align
+                                    :children/view-type
+                                    :block/order
+                                    {:block/children ...}])
+                   :in $ ?uid
+                   :where [?e :block/uid ?uid]]`;
+
+    const data = await window.roamAlphaAPI.q(query, pageUID);
+    const topLevelBlocks = data[0]?.[0]?.['children'] || [];
+
+    if (topLevelBlocks.length === 0) {
+        showToast("Page has no blocks to send.", "WARNING");
+        return;
+    }
+
+    const existsResult = await queryGraph(
+        graphEditToken,
+        `[:find ?uid :in $ ?title :where [?p :node/title ?title] [?p :block/uid ?uid]]`,
+        [pageTitle]
+    );
+    if (!existsResult || existsResult.length === 0) {
+        await createPage(graphEditToken, { page: { title: pageTitle } });
+    }
+
+    const body = { action: "batch-actions", actions: [] };
+    const allUnresolvedUids = [];
+
+    async function processBlocks(parentUID, blocks, isTopLevel) {
+        for (const block of sortByOrder(blocks)) {
+            const newUID = roamAlphaAPI.util.generateUID();
+            const resolveResult = await resolveBlockRefs(block['string'] || '', []);
+
+            if (resolveResult.unresolvedUids.length > 0) {
+                allUnresolvedUids.push(...resolveResult.unresolvedUids);
+            }
+
+            const actionObject = {
+                actionType: "create-block",
+                string: resolveResult.resolvedString,
+                uid: newUID,
+            };
+
+            if (isTopLevel) {
+                actionObject.pageTitle = pageTitle;
+            } else {
+                actionObject.parentUID = parentUID;
+            }
+
+            if (block['open'] !== undefined) actionObject.open = block['open'];
+            if (block['heading'] !== undefined) actionObject.heading = block['heading'];
+            if (block['text-align'] !== undefined) actionObject.textAlign = block['text-align'];
+            if (block['view-type'] !== undefined) actionObject.childViewType = block['view-type'];
+
+            body.actions.push(createBlockAction(actionObject));
+
+            if (block['children']?.length) {
+                await processBlocks(newUID, block['children'], false);
+            }
+        }
+    }
+
+    try {
+        await processBlocks(null, topLevelBlocks, true);
+        const batch = await batchActions(graphEditToken, body);
+
+        if (batch?.error) {
+            const failureInfo = batch['num-actions-successfully-transacted-before-failure'];
+            const detail = failureInfo !== undefined ? ` after ${failureInfo} blocks` : '';
+            showToast(`Error${detail}: ${batch.error}`, "DANGER");
+        } else {
+            showToast(`Page "${pageTitle}" sent to ${graphName}`, "SUCCESS");
+            if (allUnresolvedUids.length > 0) {
+                const uniqueUids = [...new Set(allUnresolvedUids)];
+                const uidList = uniqueUids.slice(0, 3).join(', ');
+                const moreCount = uniqueUids.length > 3 ? ` and ${uniqueUids.length - 3} more` : '';
+                showToast(`Warning: ${uniqueUids.length} block reference(s) could not be resolved: ((${uidList}))${moreCount}`, "WARNING");
+            }
+        }
+    } catch (error) {
+        console.error('Error sending page:', error);
+        showToast("Error: " + (error.message || error), "DANGER");
+    }
+}
+
+async function sendPageToGraph(extensionAPI, pageUID, pageTitle) {
+    const graphs = getGraphInfo(extensionAPI);
+
+    if (graphs.length === 0) {
+        showToast("You haven't added any Graph API Tokens to Send-To-Graph.", "WARNING");
+        return;
+    } else if (graphs.length === 1) {
+        const graphEditToken = initializeGraph({ token: graphs[0].editToken, graph: graphs[0].name });
+        await batchSendPage(graphEditToken, graphs[0].name, pageUID, pageTitle);
+    } else {
+        const renderMyAlert = createOverlayRender("myAlertId", MyAlert);
+        const onClose = () => console.log("Page Send Canceled");
+        const onConfirm = async (value) => {
+            extensionAPI.settings.set("default-graph", value);
+            const graphEditToken = initializeGraph({ token: value.editToken, graph: value.name });
+            await batchSendPage(graphEditToken, value.name, pageUID, pageTitle);
+        };
+        renderMyAlert({ onClose, onConfirm, options: getGraphInfo(extensionAPI), defaultValue: getDefaultGraph(extensionAPI) });
+    }
+}
+
 async function onload({extensionAPI}) {
 
     const panelConfig = {
@@ -317,6 +432,10 @@ async function onload({extensionAPI}) {
         label: "Send to Graph",
         callback: (e) => sendToGraph(extensionAPI, e['block-uid'])
     })
+    roamAlphaAPI.ui.pageContextMenu.addCommand({
+        label: PAGE_CONTEXT_LABEL,
+        callback: (e) => sendPageToGraph(extensionAPI, e['page-uid'], e['page-title'])
+    })
     extensionAPI.ui.commandPalette.addCommand({label: 'Send To Graph', 
                callback: () => {
                 let block = window.roamAlphaAPI.ui.getFocusedBlock()
@@ -334,10 +453,9 @@ async function onload({extensionAPI}) {
 
 
 function onunload() {
-    window.roamAlphaAPI.ui.blockContextMenu.removeCommand({
-        label: "Send to Graph",
-      });
-  console.log("unload send-to-graph plugin");
+    window.roamAlphaAPI.ui.blockContextMenu.removeCommand({ label: "Send to Graph" });
+    window.roamAlphaAPI.ui.pageContextMenu.removeCommand({ label: PAGE_CONTEXT_LABEL });
+    console.log("unload send-to-graph plugin");
 }
 
 export default {
