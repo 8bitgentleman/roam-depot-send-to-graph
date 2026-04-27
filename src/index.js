@@ -14,7 +14,7 @@ function getDefaultGraph(extensionAPI) {
 
 function createBlockAction(actionObject) {
     // actionType,
-    // parentUID,
+    // parentUID or pageTitle,
     // string,
     // uid,
     // open,
@@ -22,9 +22,15 @@ function createBlockAction(actionObject) {
     // textAlign,
     // childViewType,
     // order="last"
-    const location = {
-        "parent-uid": actionObject.parentUID,
-    };
+    const location = {};
+
+    // Support both parent-uid (for blocks) and page-title (for pages/daily notes)
+    if (actionObject.pageTitle !== undefined) {
+        location["page-title"] = actionObject.pageTitle;
+    } else if (actionObject.parentUID !== undefined) {
+        location["parent-uid"] = actionObject.parentUID;
+    }
+
     const block = {
         "string": actionObject.string,
     };
@@ -41,9 +47,6 @@ function createBlockAction(actionObject) {
     }
     if (actionObject.heading !== undefined) {
         block["heading"] = actionObject.heading;
-    }
-    if (actionObject.textAlign !== undefined) {
-        block["text-align"] = actionObject.textAlign;
     }
     if (actionObject.textAlign !== undefined) {
         block["text-align"] = actionObject.textAlign;
@@ -71,14 +74,19 @@ async function resolveBlockRefs(origBlockString) {
     // Resolve block references
     let blockMatch;
     while ((blockMatch = blockRegex.exec(origBlockString)) !== null) {
-        const blockUid = blockMatch[0];        
+        const blockUid = blockMatch[0];
         if (blockUid) {
-            let blockText = await window.roamAlphaAPI.pull("[:block/string]", `[:block/uid "${blockUid}"]`)[':block/string'];
-            if (blockText) {
+            // Pull the block data, checking for null response
+            const blockData = await window.roamAlphaAPI.pull("[:block/string]", `[:block/uid "${blockUid}"]`);
+            if (blockData && blockData[':block/string']) {
+                let blockText = blockData[':block/string'];
                 // Recursively resolve any block references in the fetched block text
                 blockText = await resolveBlockRefs(blockText);
                 // Replace the original block reference with the resolved block text
                 resolvedStr = resolvedStr.replace(`((${blockUid}))`, blockText);
+            } else {
+                // If block doesn't exist, leave the reference as-is or mark it
+                console.warn(`Block reference ((${blockUid})) could not be resolved - block may not exist`);
             }
         }
     }
@@ -121,24 +129,39 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
         for (let index = 0; index < data.length; index++) {
             const block = data[index];
             let newIndex;
-            if (page!== undefined) {
-                if (page=="today") {
-                    parentIndex = roamAlphaAPI.util.dateToPageUid(new Date())
+            let usePageTitle = false;
+            let pageTitle = null;
+
+            if (page !== undefined) {
+                if (page == "today") {
+                    // Use Backend API's daily-note-page format for reliability
+                    const today = new Date();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    const year = today.getFullYear();
+                    pageTitle = { "daily-note-page": `${month}-${day}-${year}` };
+                    usePageTitle = true;
                 } else {
-                    parentIndex = page
+                    parentIndex = page;
                 }
-                newIndex = roamAlphaAPI.util.generateUID()
+                newIndex = roamAlphaAPI.util.generateUID();
             } else {
-                newIndex = roamAlphaAPI.util.generateUID()
+                newIndex = roamAlphaAPI.util.generateUID();
             }
-            
+
             const resolvedBlockRefs = await resolveBlockRefs(block['string']);
 
             let actionObject = {
-                actionType:"create-block",
-                parentUID:parentIndex,
+                actionType: "create-block",
                 string: resolvedBlockRefs,
-                uid:newIndex
+                uid: newIndex
+            };
+
+            // Use page-title for top-level blocks targeting daily pages, parent-uid for nested blocks
+            if (usePageTitle) {
+                actionObject.pageTitle = pageTitle;
+            } else {
+                actionObject.parentUID = parentIndex;
             }
     
             if (block["open"] !== undefined) {
@@ -173,9 +196,30 @@ async function batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID
         }
         await queryToBatchCreate(-1, data[0], "today")
         const batch = await batchActions(graphEditToken, body)
-        showToast("Blocks sent to " + graphName, "SUCCESS");
+
+        // Check if batch action was successful
+        if (batch && batch.error) {
+            const failureInfo = batch['num-actions-successfully-transacted-before-failure'];
+            if (failureInfo !== undefined) {
+                console.error(`Batch action failed after ${failureInfo} successful actions`, batch);
+                showToast(`Error: Failed after ${failureInfo} blocks. ${batch.error}`, "DANGER");
+            } else {
+                console.error('Batch action error:', batch);
+                showToast(`Error: ${batch.error}`, "DANGER");
+            }
+        } else {
+            showToast("Blocks sent to " + graphName, "SUCCESS");
+        }
     } catch (error) {
-        showToast("Error: " + error, "DANGER");
+        console.error('Error sending blocks:', error);
+        // Provide more specific error messages based on error type
+        let errorMessage = "Error: " + error.message || error;
+        if (error.message && error.message.includes("Parent entity doesn't exist")) {
+            errorMessage = "Error: Target page doesn't exist. Try opening the destination graph first.";
+        } else if (error.message && error.message.includes("Cannot read properties of null")) {
+            errorMessage = "Error: Block reference couldn't be resolved. Some referenced blocks may not exist.";
+        }
+        showToast(errorMessage, "DANGER");
     }
 }
 
@@ -204,7 +248,7 @@ async function sendToGraph(extensionAPI, blockUID) {
             console.log("Block Send Canceled");
           };
           
-        const onConfirm = (value) => {
+        const onConfirm = async (value) => {
             extensionAPI.settings.set("default-graph", value)
             graphName = value.name;
             // send the blocks to the selected graph
@@ -212,8 +256,8 @@ async function sendToGraph(extensionAPI, blockUID) {
                 token: value.editToken,
                 graph: value.name,
             });
-            
-            batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID)
+
+            await batchSendBlocks(extensionAPI, graphEditToken, graphName, blockUID)
         };
           
         const options = getGraphInfo(extensionAPI);
